@@ -108,6 +108,7 @@ class Milvus(VectorStore):
         index_params: Optional[dict] = None,
         search_params: Optional[dict] = None,
         drop_old: Optional[bool] = False,
+        auto_id: Optional[bool] = True,
         *,
         primary_field: str = "pk",
         text_field: str = "text",
@@ -154,6 +155,7 @@ class Milvus(VectorStore):
             connection_args = DEFAULT_MILVUS_CONNECTION
         self.alias = self._create_connection_alias(connection_args)
         self.col: Optional[Collection] = None
+        self.auto_id: bool = auto_id
 
         # Grab the existing collection if it exists
         if utility.has_collection(self.collection_name, using=self.alias):
@@ -276,7 +278,8 @@ class Milvus(VectorStore):
         # Create the primary key field
         fields.append(
             FieldSchema(
-                self._primary_field, DataType.INT64, is_primary=True, auto_id=True
+                self._primary_field, DataType.VARCHAR, is_primary=True, auto_id=self.auto_id,
+                max_length=65_535,
             )
         )
         # Create the vector field, supports binary or float vectors
@@ -310,7 +313,8 @@ class Milvus(VectorStore):
             for x in schema.fields:
                 self.fields.append(x.name)
             # Since primary field is auto-id, no need to track it
-            self.fields.remove(self._primary_field)
+            if self.auto_id:
+                self.fields.remove(self._primary_field)
 
     def _get_index(self) -> Optional[dict[str, Any]]:
         """Return the vector index information if it exists"""
@@ -389,6 +393,7 @@ class Milvus(VectorStore):
     def add_texts(
         self,
         texts: Iterable[str],
+        ids: Optional[list, None] = None,
         metadatas: Optional[List[dict]] = None,
         timeout: Optional[int] = None,
         batch_size: int = 1000,
@@ -437,10 +442,21 @@ class Milvus(VectorStore):
             self._init(embeddings, metadatas)
 
         # Dict to hold all insert columns
-        insert_dict: dict[str, list] = {
-            self._text_field: texts,
-            self._vector_field: embeddings,
-        }
+        if not self.auto_id:
+            if ids is None:
+                logger.error("IDs were not defined")
+                raise ValueError
+            else:
+                insert_dict: dict[str, list] = {
+                    self._text_field: texts,
+                    self._vector_field: embeddings,
+                    self._primary_field: ids
+                }
+        else:
+            insert_dict: dict[str, list] = {
+                self._text_field: texts,
+                self._vector_field: embeddings
+            }
 
         # Collect the metadata into the insert dict.
         if metadatas is not None:

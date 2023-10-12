@@ -44,6 +44,7 @@ class VectorStore(ABC):
     def add_texts(
         self,
         texts: Iterable[str],
+        ids: Optional[list] = None,
         metadatas: Optional[List[dict]] = None,
         **kwargs: Any,
     ) -> List[str]:
@@ -107,7 +108,7 @@ class VectorStore(ABC):
             None, partial(self.add_texts, **kwargs), texts, metadatas
         )
 
-    def add_documents(self, documents: List[Document], **kwargs: Any) -> List[str]:
+    def add_documents(self, documents: List[Document], ids: Optional[list] = None, **kwargs: Any) -> List[str]:
         """Run more documents through the embeddings and add to the vectorstore.
 
         Args:
@@ -119,7 +120,8 @@ class VectorStore(ABC):
         # TODO: Handle the case where the user doesn't provide ids on the Collection
         texts = [doc.page_content for doc in documents]
         metadatas = [doc.metadata for doc in documents]
-        return self.add_texts(texts, metadatas, **kwargs)
+
+        return self.add_texts(texts, ids=ids, metadatas=metadatas,  **kwargs)
 
     async def aadd_documents(
         self, documents: List[Document], **kwargs: Any

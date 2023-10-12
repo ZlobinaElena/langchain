@@ -311,20 +311,20 @@ def index(
             uids.append(hashed_doc.uid)
             docs_to_index.append(hashed_doc.to_document())
 
-        # Be pessimistic and assume that all vector store write will fail.
-        # First write to vector store
-        if docs_to_index:
-            vector_store.add_documents(docs_to_index, ids=uids)
-            num_added += len(docs_to_index)
-
         # And only then update the record store.
         # Update ALL records, even if they already exist since we want to refresh
         # their timestamp.
+
         record_manager.update(
             [doc.uid for doc in hashed_docs],
             group_ids=source_ids,
             time_at_least=index_start_dt,
         )
+        # Be pessimistic and assume that all vector store write will fail.
+        # First write to vector store
+        if docs_to_index:
+            vector_store.add_documents(docs_to_index, ids=uids)
+            num_added += len(docs_to_index)
 
         # If source IDs are provided, we can do the deletion incrementally!
         if cleanup == "incremental":
